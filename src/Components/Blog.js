@@ -1,40 +1,54 @@
-import { useEffect, useRef, useState } from "react";
-
+import {useEffect, useRef, useState } from "react";
+import { db } from "../firebaseInit";
+import { doc, setDoc, getDoc, onSnapshot,collection, deleteDoc } from "firebase/firestore";
 //Blogging App using Hooks
 export default function Blog() {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [blogs, setBlogs] = useState([]);
     const titleRef = useRef(null);
-    // Load data from localStorage on component mount
+
+    useEffect(() =>{
+        titleRef.current.focus();
+    },[]);
     useEffect(() => {
-        const storeBlogs = localStorage.getItem('blogs');
-        if (storeBlogs) {
-            try {
-                const parsedBlogs = JSON.parse(storeBlogs);
-                setBlogs(parsedBlogs);
-            } catch (error) {
-                console.error("Error parsing JSON:", error);
-                // Handle the error, perhaps by clearing the invalid data
-                localStorage.removeItem('blogs');
-            }
+        if (blogs.length && blogs[0].title) {
+          document.title = blogs[0].title;
+        } else {
+          document.title = "No blogs!";
         }
-    }, []);
-    // Save data to localStorage whenever blogs state changes
-    useEffect(() => {
-        localStorage.setItem('blogs', JSON.stringify(blogs));
-    }, [blogs]);
-    function handleSubmit(e) {
+      }, [blogs]);
+
+      useEffect(()=>{
+        const unsub = onSnapshot(collection(db, "blogs"), (snapShot) => {
+          const blogs = snapShot.docs.map((doc)=>{
+                  return{
+                    id: doc.id,
+                    ...doc.data()
+                  }
+              })
+              setBlogs(blogs)
+      });
+      
+      },[]);
+
+    async function handleSubmit(e) {
         e.preventDefault();
         if (title.trim() !== '' && content.trim() !== '') {
-            setBlogs([{ title, content }, ...blogs])
+            await setDoc(doc(db, "blogs", title), {
+                title: title,
+                content: content,
+                createdOn: new Date()
+            });
+            // setBlogs([{ title, content }, ...blogs])
             setTitle('');
             setContent('');
             titleRef.current.focus();
         }
     }
-    function removeBlog(i) {
-        setBlogs(blogs.filter((blog, index) => i !== index));
+     async function removeBlog(id) {
+        await deleteDoc(doc(db, 'blogs', id))
+        setBlogs(blogs);
 
     }
 
@@ -42,8 +56,10 @@ export default function Blog() {
         <>
             <h1>Write a Blog!</h1>
             <div className="section">
-                <form onSubmit={handleSubmit}> <Row label="Title">
+                <form onSubmit={handleSubmit}> 
+                <Row label="Title">
                     <input className="input"
+                    type="text"
                         placeholder="Enter the Title of the Blog here.."
                         value={title}
                         ref={titleRef}
@@ -76,7 +92,7 @@ export default function Blog() {
                     <h3>{blog.title}</h3>
                     <p>{blog.content}</p>
                     <div className="blog-btn">
-                        <button onClick={() => removeBlog(i)} className="btn remove">
+                        <button onClick={() => removeBlog(blog.id)} className="btn remove">
                             Delete
                         </button>
                     </div>
